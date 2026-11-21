@@ -52,6 +52,12 @@ TOOLS = [
             "date": {"type": "string", "description": "출석하라는 날짜 (예: 다음 주 화요일). 모르면 빈칸"},
             "reason": {"type": "string", "description": "날짜를 못 맞추는 이유 한 단어 (예: 시험). 없으면 빈칸"},
             "evidence": {"type": "string", "description": "수사관이 말한 증거 (예: CCTV). 없으면 빈칸"},
+            "signals": {"type": "array", "items": {"type": "string", "enum": SIGNAL_IDS},
+                        "description": "변호사 상담 필요도 신호. 사용자 본인에 대해 글에서 확인되는 것만: suspect_status(본인이 피의자), "
+                                       "testimony_only(물증 없이 진술이 핵심), unverified_evidence(수사관이 증거를 말했지만 내용 모름), "
+                                       "pressure_remarks(수사관의 예단·압박 발언), unknown_charge(혐의 내용을 모름), "
+                                       "serious_charge(본인 혐의가 성범죄·사기 등 무거운 죄명), status_shift(참고인인데 나를 의심하는 질문)"},
+            "sex_crime": {"type": "boolean", "description": "본인이 성범죄 피의자로 연락받았으면 true"},
         },
         ["role", "agency", "status", "summary"],
     ),

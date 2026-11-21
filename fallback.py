@@ -31,8 +31,33 @@ def _law_line(law_id, note=""):
     return f"근거: {SHORT_LAW.get(a['law'], a['law'])} {a['article']} — {text}"
 
 
+def _tips(tips):
+    """'이럴 땐?' 접기: 화면에서 눌러야 펼쳐진다 (❓ 질문 :: 답 형식, app.safe_md가 변환)"""
+    return [f"❓ {t['q']} :: {t['a']}" for t in tips or []]
+
+
 def _quote(text):
     return "\n".join("> " + line for line in text.splitlines())
+
+
+SERIOUS_WORDS = ["성범죄", "성추행", "성폭력", "강제추행", "불법촬영", "몰카", "사기", "마약", "폭행", "보이스피싱"]
+SEX_WORDS = ["성범죄", "성추행", "성폭력", "강제추행", "불법촬영", "몰카", "화장실"]
+
+
+def _risk_signals(user_text, role, slots):
+    """AI가 넘긴 신호가 있으면 그것을, 없으면 글에서 규칙으로 찾는다."""
+    if slots.get("signals"):
+        return slots["signals"], slots.get("sex_crime", False)
+    sig = []
+    if role == "피의자":
+        sig.append("suspect_status")
+    if not slots.get("case_type") and not any(w in user_text for w in SERIOUS_WORDS):
+        sig.append("unknown_charge")
+    if slots.get("evidence") or any(w in user_text for w in EVIDENCE_WORDS):
+        sig.append("unverified_evidence")
+    if role == "피의자" and any(w in user_text for w in SERIOUS_WORDS):
+        sig.append("serious_charge")
+    return sig, role == "피의자" and any(w in user_text for w in SEX_WORDS)
 
 
 AGENCY_ORG = {"경찰": "경찰서", "공소청": "공소청", "중수청": "중수청"}
@@ -116,12 +141,30 @@ def basic_answer(user_text, slots=None, events=None):
             lines.append(f"- {what} → {num}")
         if len(talk) > 1:
             lines.append(f"{talk[0][0]}과 {talk[1][0]}를 한 번에 말해도 돼요.")
+    if contact.get("tips"):
+        lines += [""] + _tips(contact["tips"])
     if contact.get("next_call_tip"):
         lines += ["", contact["next_call_tip"]]
     lines.append("")
 
+    sig, sex = _risk_signals(user_text, role, slots)
+    risk = call("assess_risk", {"signal_ids": sig, "sex_crime_suspect": sex})
+    events[-1]["inlined"] = True  # 변호사 블록 안에 바로 보여 주므로 아래 카드로 또 띄우지 않는다
+
     for i, stp in enumerate(plan["steps"]):
         lines.append(f"### {CIRCLED[i]} {stp['block_title']}")
+        if stp["block"] == "lawyer":
+            lines.append(f"**지금 상황에서는: {risk['emoji']} {risk['label']}**")
+            lines.append(risk["recommendation"])
+            if risk["matched"]:
+                lines.append("")
+                lines.append("이렇게 안내하는 이유 (체크리스트에 해당하는 항목, 법률 판단 아님):")
+                lines += [f"- {m['label']}" for m in risk["matched"]]
+            if risk.get("sex_crime_override"):
+                lines.append("- 성범죄 피의자 출석요구는 신호 개수와 관계없이 🔴로 안내해요.")
+            lines += ["", "❓ 이럴 때는 꼭 상담받으세요 :: 수사관이 나를 의심하는 질문을 하거나, 증거가 있다고만 하고 내용을 안 알려 주거나, "
+                      "처벌이 무거운 죄명(성범죄·사기 등)이라면 출석 전에 상담을 받으세요.", "",
+                      "#### 상담받는 방법"]
         if stp["prepare"]:
             lines.append("**준비물**")
             lines += [f"- {x}" for x in stp["prepare"]]
@@ -147,6 +190,8 @@ def basic_answer(user_text, slots=None, events=None):
             else:
                 lines += ["**이렇게 말씀해 보세요**:", _quote(doc["text"])]
             lines.append("")
+        if stp.get("tips"):
+            lines += _tips(stp["tips"]) + [""]
         law = _law_line(stp.get("basis"), stp.get("basis_note", ""))
         if law:
             lines += [law, ""]

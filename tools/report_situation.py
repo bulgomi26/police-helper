@@ -8,8 +8,12 @@ AGENCIES = ["경찰", "공소청", "중수청", "모름"]
 STATUSES = ["출석_요청", "조사_중_또는_체포", "피해_신고_상담", "기타"]
 
 
+SIGNAL_IDS = ["suspect_status", "testimony_only", "unverified_evidence", "pressure_remarks",
+              "unknown_charge", "serious_charge", "status_shift"]
+
+
 def report_situation(role="모름", agency="모름", status="출석_요청", summary="", case_type="", date="",
-                     reason="", evidence=""):
+                     reason="", evidence="", signals=None, sex_crime=False):
     clean = lambda v, ok, d: v if v in ok else d  # noqa: E731
     return {
         "role": clean(role, ROLES, "모름"),
@@ -20,4 +24,6 @@ def report_situation(role="모름", agency="모름", status="출석_요청", sum
         "date": (date or "").strip()[:30],
         "reason": (reason or "").strip()[:20],
         "evidence": (evidence or "").strip()[:20],
+        "signals": [x for x in (signals or []) if x in SIGNAL_IDS],
+        "sex_crime": bool(sex_crime) and role == "피의자",
     }

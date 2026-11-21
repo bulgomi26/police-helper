@@ -44,6 +44,20 @@ details.evidence > div {
   background: #F7F9FF; border-left: 3px solid #1E4FD8; border-radius: 6px;
   font-size: 0.92rem; line-height: 1.6;
 }
+details.tip { margin: 2px 0 6px 0; }
+details.tip > summary {
+  list-style: none; cursor: pointer; user-select: none; display: inline-block;
+  padding: 5px 12px; border-radius: 8px; background: #FFF7E6; color: #92400E;
+  border: 1px solid #FCD9A8; font-size: 0.9rem; font-weight: 600;
+}
+details.tip > summary::-webkit-details-marker { display: none; }
+details.tip > summary::marker { content: ""; }
+details.tip[open] > summary { background: #F59E0B; color: #FFFFFF; border-color: #F59E0B; }
+details.tip[open] .arrow { display: inline-block; transform: rotate(180deg); }
+details.tip > div {
+  margin-top: 6px; padding: 10px 14px; background: #FFFBF2;
+  border-left: 3px solid #F59E0B; border-radius: 6px; font-size: 0.92rem; line-height: 1.6;
+}
 table.strategy {
   width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0;
   border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
@@ -138,6 +152,11 @@ def safe_md(text):
     out = []
     for line in text.splitlines():
         m = re.match(r"^\s*(?:[-*]\s*)?(?:<strong>)?근거(?:</strong>)?\s*[:：]\s*(?:</strong>)?\s*(.+)$", line)
+        tip = re.match(r"^\s*(?:[-*]\s*)?❓\s*(.+?)\s*::\s*(.+)$", line)
+        if tip:
+            out += ["", f'<details class="tip"><summary>❓ {tip.group(1)} <span class="arrow">▾</span></summary>'
+                    f"<div>{tip.group(2)}</div></details>", ""]
+            continue
         if m:
             out += ["", '<details class="evidence"><summary>📖 '
                     '<span class="when-closed">근거 보기 ▾</span><span class="when-open">근거 접기 ▴</span>'
@@ -187,6 +206,8 @@ def render_event(ev):
         with st.expander(f"📖 관련 조문 {r['found']}개"):
             for a in r["results"]:
                 st.markdown(f"**{law_label(a)}**  \n{a['summary']}  \n[국가법령정보센터에서 원문 보기]({a['source_url']})")
+    elif name == "assess_risk" and ev.get("inlined"):
+        return  # 답변 본문(변호사 블록)에 이미 들어감
     elif name == "assess_risk":
         box = {"green": st.success, "yellow": st.warning, "red": st.error}[r["level"]]
         head = f"### {r['emoji']} {r['label']}  ({r['count']}/{r['total_signals']}개 신호)\n{r['recommendation']}"
@@ -366,7 +387,7 @@ if last_answer():
     note = (f"[수사 초기 대응 도우미] {stamp} 기준 안내\n"
             "※ 법률 자문이 아닌 절차 안내입니다. 개별 판단은 변호사·대한법률구조공단(132)에 확인하세요.\n\n")
     st.download_button("📄 내 상황과 할 일 저장하기 (내 휴대폰에만 저장돼요)",
-                       data=note + last_answer(), file_name=f"할일_{stamp[:10]}.txt", mime="text/plain")
+                       data=note + last_answer().replace(" :: ", "\n   → "), file_name=f"할일_{stamp[:10]}.txt", mime="text/plain")
 
 user_text = st.chat_input("예: 경찰서에서 출석하라는 전화를 받았어요", max_chars=MAX_INPUT_CHARS) or demo_clicked
 
