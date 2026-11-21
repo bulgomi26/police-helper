@@ -42,6 +42,7 @@ def check_official_contact(org_name: str = "", phone: str = "") -> dict:
     result.update(
         agency=agency["name"],
         short_name=agency.get("short_name", agency["name"]),
+        tips=agency.get("tips", []),
         official_numbers=agency["official_numbers"],
         extra_contacts=agency.get("extra_contacts", {}),
         how_to_verify=agency["how_to_verify"],

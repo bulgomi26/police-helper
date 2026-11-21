@@ -23,6 +23,7 @@ def get_action_plan(role: str = "", risk_level: str = "") -> dict:
             "how": data.get("block_guides", {}).get(st["block"], {}).get("how", []),
             "doc_type": data.get("block_guides", {}).get(st["block"], {}).get("doc_type"),
             "basis_note": data.get("block_guides", {}).get(st["block"], {}).get("basis_note", ""),
+            "tips": data.get("block_guides", {}).get(st["block"], {}).get("tips", []),
         })
     return {
         "plan_id": plan["id"],
