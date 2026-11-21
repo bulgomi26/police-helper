@@ -6,6 +6,7 @@ LLM 없이도 같은 형식의 안내를 만들 수 있다. (API 한도 초과, 
 import re
 
 from tools import run_tool
+from tools.followups import default_ids, find_by_text
 from tools.data_loader import load
 
 # 이미 조사실에 있거나 체포된 상황 ('체포영장' 같은 사칭 문구와 구분하려고 상태를 나타내는 말만 잡는다)
@@ -107,8 +108,6 @@ def basic_answer(user_text, slots=None, events=None):
         mixed = len(roles) > 1  # 신분이 여러 개 적혀 있으면 임의로 고르지 않는다
         role = roles.pop() if len(roles) == 1 else "모름"
     plan = call("get_action_plan", {"role": role})
-    card_id = "reference_alone" if role == "참고인" else "silence"
-    call("get_strategy_card", {"card_id": card_id})
 
     hotline = _hotline(contact)
     lines = [f"**지금 할 일**: 먼저 {hotline}에 전화해 연락한 사람이 진짜 수사관인지 확인하세요.", ""]
@@ -195,6 +194,11 @@ def basic_answer(user_text, slots=None, events=None):
         law = _law_line(stp.get("basis"), stp.get("basis_note", ""))
         if law:
             lines += [law, ""]
+    # 진술거부·녹음 같은 카드는 한 번에 다 보여 주지 않고, 이어서 물어볼 질문 버튼으로 연결한다
+    # (AI가 상황을 정리하며 고른 질문이 있으면 그것을, 없으면 신분별 기본 질문)
+    call("suggest_questions", {"ids": slots.get("followups") or default_ids(role)})
+    if not events[-1]["result"]["questions"]:
+        events[-1]["result"] = run_tool("suggest_questions", {"ids": default_ids(role)})
     return "\n".join(lines), events
 
 
@@ -246,13 +250,22 @@ FOLLOWUP_CARDS = [
 ]
 
 
+def _card_reply(card_id):
+    result = run_tool("get_strategy_card", {"card_id": card_id})
+    events = [{"tool": "get_strategy_card", "args": {"card_id": card_id}, "result": result}]
+    ids = default_ids(shown_card=card_id)  # 이 카드와 관련된 다른 카드만. 없으면 버튼 없음
+    events.append({"tool": "suggest_questions", "args": {"ids": ids}, "result": run_tool("suggest_questions", {"ids": ids})})
+    return f"이 질문과 관련된 내용을 아래 카드로 정리했어요. ({result['title']})", events
+
+
 def basic_followup(user_text):
-    """두 번째 질문부터 AI를 쓸 수 없을 때: 질문에 맞는 전략 카드만 보여 준다."""
+    """두 번째 질문부터 AI를 쓸 수 없을 때: 질문에 맞는 전략 카드(항목)만 보여 준다."""
+    hit = find_by_text(user_text)  # 답변 아래 질문 버튼으로 들어온 질문
+    if hit:
+        return _card_reply(hit["card"])
     for words, card_id in FOLLOWUP_CARDS:
         if any(w in user_text for w in words):
-            result = run_tool("get_strategy_card", {"card_id": card_id})
-            reply = f"이 질문과 관련된 선택지를 아래 표로 정리했어요. ({result['title']})"
-            return reply, [{"tool": "get_strategy_card", "args": {"card_id": card_id}, "result": result}]
+            return _card_reply(card_id)
     reply = ("지금은 기본 안내만 드릴 수 있어요. 앞의 안내에서 ①부터 차례로 진행하시고, "
              "판단이 필요한 부분은 대한법률구조공단(국번 없이 132)에 무료로 상담해 보세요.")
     return reply, []

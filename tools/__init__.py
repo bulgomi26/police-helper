@@ -1,10 +1,11 @@
-"""에이전트가 쓰는 도구 6개: 함수 + LLM에 넘길 스키마(OpenAI tools 형식)."""
+"""에이전트가 쓰는 도구: 함수 + LLM에 넘길 스키마(OpenAI tools 형식)."""
 import json
 
 from .analyze_message import analyze_message
 from .assess_risk import assess_risk
 from .check_official_contact import check_official_contact
 from .draft_document import draft_document
+from .followups import catalog, suggest_questions
 from .get_action_plan import get_action_plan
 from .get_strategy_card import get_strategy_card
 from .report_situation import AGENCIES, ROLES, STATUSES, report_situation
@@ -19,10 +20,15 @@ FUNCTIONS = {
     "assess_risk": assess_risk,
     "draft_document": draft_document,
     "report_situation": report_situation,
+    "suggest_questions": suggest_questions,
 }
 
 SIGNAL_IDS = ["suspect_status", "testimony_only", "unverified_evidence", "pressure_remarks",
               "unknown_charge", "serious_charge", "status_shift"]
+_Q = catalog()
+QUESTION_IDS = [x["id"] for x in _Q]
+QUESTION_DESC = ", ".join(f"{x['id']}='{x['q']}'" for x in _Q)
+
 LAW_TAGS = ["출석요구", "연기", "일정", "피의자", "참고인", "변호인", "피의자신문",
             "진술거부권", "권리고지", "조서열람", "조서", "수정", "영상녹화", "녹음",
             "수사기관", "검사", "사칭"]
@@ -58,6 +64,9 @@ TOOLS = [
                                        "pressure_remarks(수사관의 예단·압박 발언), unknown_charge(혐의 내용을 모름), "
                                        "serious_charge(본인 혐의가 성범죄·사기 등 무거운 죄명), status_shift(참고인인데 나를 의심하는 질문)"},
             "sex_crime": {"type": "boolean", "description": "본인이 성범죄 피의자로 연락받았으면 true"},
+            "followups": {"type": "array", "items": {"type": "string", "enum": QUESTION_IDS},
+                          "description": "이 사용자 상황과 관련된 카드만 (답변 아래 버튼으로 나온다). "
+                                         "관련 없으면 비운다. 피해자·조사 중·사칭 의심이면 비워 둔다. " + QUESTION_DESC},
         },
         ["role", "agency", "status", "summary"],
     ),
@@ -87,9 +96,16 @@ TOOLS = [
     ),
     _fn(
         "get_strategy_card",
-        "선택지별 장단점 카드. reference_alone=참고인 조사에 혼자 갈지, recording=녹음, silence=진술거부권.",
+        "선택지·판단 기준 카드(화면에 카드로 나온다). reference_alone=참고인 조사에 혼자 갈지, recording=녹음, silence=진술거부권.",
         {"card_id": {"type": "string", "enum": ["reference_alone", "recording", "silence"]}},
         ["card_id"],
+    ),
+    _fn(
+        "suggest_questions",
+        "답변 아래 '이어서 물어보기' 버튼을 고른다. 버튼 하나 = 카드 하나. 방금 답한 내용·사용자 상황과 실제로 관련된 다른 카드만 고르고, "
+        "관련된 카드가 없으면 부르지 않는다(버튼이 나오지 않는다). 방금 보여 준 카드, 이미 물어본 카드는 고르지 않는다. " + QUESTION_DESC,
+        {"ids": {"type": "array", "items": {"type": "string", "enum": QUESTION_IDS}}},
+        ["ids"],
     ),
     _fn(
         "assess_risk",

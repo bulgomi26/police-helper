@@ -15,6 +15,8 @@ from config import MAX_AGENT_STEPS, MAX_OUTPUT_TOKENS, MAX_TURNS_PER_SESSION, TU
 from compose import first_answer
 from fallback import basic_answer, basic_followup
 from guard import MAX_INPUT_CHARS, check_output, masked_notice, prepare_input
+from tools import run_tool
+from tools.followups import default_ids
 
 st.set_page_config(page_title="수사 초기 대응 도우미", page_icon="🛡️", layout="wide")
 
@@ -75,6 +77,8 @@ table.strategy tr:last-child td { border-bottom: none; }
 table.strategy tbody tr:nth-child(even) td { background: #FAFBFC; }
 table.strategy td.opt .name { font-weight: 700; font-size: 1.02rem; color: #0F172A; margin-bottom: 6px; }
 table.strategy td.opt .when { font-size: 0.85rem; color: #64748B; }
+table.strategy td.opt .src { font-size: 0.8rem; color: #64748B; margin-top: 8px; }
+table.strategy td.opt .src a { color: #1E4FD8; }
 table.strategy td.say { background: #FFF8E6 !important; border-left: 3px solid #F5B301; font-weight: 500; }
 /* 휴대폰: 표를 선택지별 카드로 */
 @media (max-width: 700px) {
@@ -227,31 +231,50 @@ def render_event(ev):
             st.markdown(f"#### 🧭 {r['title']}")
             def esc(t):
                 return (t or "").replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br>")
-            rows = []
-            for opt in r["options"]:
-                rows.append(
-                    "<tr>"
-                    f"<td class='opt'><div class='name'>{esc(opt['name'])}</div>"
-                    f"<div class='when'>이럴 때: {esc(opt.get('when'))}</div></td>"
-                    f"<td data-label='✅ 이렇게 돼요'>{esc(opt.get('good'))}</td>"
-                    f"<td data-label='⚠️ 이건 조심하세요'>{esc(opt.get('caution'))}</td>"
-                    f"<td class='say' data-label='💬 실제로 이렇게 말해요'>{esc(opt.get('say'))}</td>"
-                    "</tr>"
+            views = {v.get("id"): v for v in r.get("expert_views", []) if not v["summary"].startswith("TODO")}
+            def src_links(opt):  # 선택지마다 근거로 쓴 변호사 영상
+                links = [f"<a href='{esc(views[k]['url'])}' target='_blank'>{esc(views[k].get('short') or views[k]['source'])}</a>"
+                         for k in opt.get("experts", []) if k in views]
+                return f"<div class='src'>🎙 근거: {' · '.join(links)}</div>" if links else ""
+            def src_md(keys):  # 항목마다 근거로 쓴 변호사 영상 링크
+                links = [f"[{views[k].get('short') or views[k]['source']}]({views[k]['url']})" for k in keys if k in views]
+                return "🎙 근거: " + " · ".join(links) if links else ""
+            if r.get("format") == "guide":  # 안내형: 질문에 바로 답하고, 항목마다 근거를 붙인다
+                st.markdown(f"**{r['lead']}**")
+                for sec in r["sections"]:
+                    st.markdown(f"##### {sec['title']}")
+                    if sec.get("type") == "say":
+                        st.markdown("\n".join(("> " + x) if x.startswith('"') else f"- {x}" for x in sec["points"]))
+                    else:
+                        st.markdown("\n".join(f"- {x}" for x in sec["points"]))
+                    if src_md(sec.get("experts", [])):
+                        st.caption(src_md(sec["experts"]))
+            else:
+                rows = []
+                for opt in r["options"]:
+                    rows.append(
+                        "<tr>"
+                        f"<td class='opt'><div class='name'>{esc(opt['name'])}</div>"
+                        f"<div class='when'>이럴 때: {esc(opt.get('when'))}</div>{src_links(opt)}</td>"
+                        f"<td data-label='✅ 이렇게 돼요'>{esc(opt.get('good'))}</td>"
+                        f"<td data-label='⚠️ 이건 조심하세요'>{esc(opt.get('caution'))}</td>"
+                        f"<td class='say' data-label='💬 실제로 이렇게 말해요'>{esc(opt.get('say'))}</td>"
+                        "</tr>"
+                    )
+                st.markdown(
+                    "<table class='strategy'>"
+                    "<colgroup><col style='width:24%'><col style='width:25%'><col style='width:25%'><col style='width:26%'></colgroup>"
+                    "<thead><tr><th>선택</th><th>✅ 이렇게 돼요</th><th>⚠️ 이건 조심하세요</th><th>💬 실제로 이렇게 말해요</th></tr></thead>"
+                    f"<tbody>{''.join(rows)}</tbody></table>",
+                    unsafe_allow_html=True,
                 )
-            st.markdown(
-                "<table class='strategy'>"
-                "<colgroup><col style='width:24%'><col style='width:25%'><col style='width:25%'><col style='width:26%'></colgroup>"
-                "<thead><tr><th>선택</th><th>✅ 이렇게 돼요</th><th>⚠️ 이건 조심하세요</th><th>💬 실제로 이렇게 말해요</th></tr></thead>"
-                f"<tbody>{''.join(rows)}</tbody></table>",
-                unsafe_allow_html=True,
-            )
-            if not r["common_ground"].startswith("TODO"):
+            if r.get("common_ground") and not r["common_ground"].startswith("TODO"):
                 st.markdown(f"**실무자들이 공통으로 말하는 것**: {r['common_ground']}")
+            if r.get("disagreement") and not r["disagreement"].startswith("TODO"):
                 st.markdown(f"**의견이 갈리는 지점**: {r['disagreement']}")
-            views = [v for v in r["expert_views"] if not v["summary"].startswith("TODO")]
             if views:
-                with st.expander("실무자 견해 보기"):
-                    for v in views:
+                with st.expander("근거로 쓴 변호사 영상 보기"):
+                    for v in views.values():
                         link = f" [영상]({v['url']})" if v["url"] else ""
                         st.markdown(f"- **{v['source']}**{link}: {v['summary']}" + (f"  \n  _{v['bias_note']}_" if v["bias_note"] else ""))
             with st.expander("확인할 점과 근거"):
@@ -276,6 +299,31 @@ AI_LABEL = "🤖 AI가 생성한 답변입니다. 법률 자문이 아니며, �
 
 
 TOP_TOOLS = {"analyze_message", "check_official_contact"}
+HIDDEN_TOOLS = {"report_situation", "suggest_questions"}  # 화면에 카드로 그리지 않는 도구
+
+
+def ensure_suggestions(events):
+    """AI가 이어서 물어볼 카드를 고르지 않았으면, 방금 보여 준 카드와 관련된 카드(데이터의 related)로 채운다."""
+    if any(e["tool"] == "suggest_questions" and e["result"].get("questions") for e in events):
+        return events
+    card = next((e["result"] for e in reversed(events)
+                 if e["tool"] == "get_strategy_card" and "error" not in e["result"]), None)
+    if card:
+        ids = default_ids(shown_card=card["id"])  # 관련된 카드만. 없으면 버튼이 나오지 않는다
+        events.append({"tool": "suggest_questions", "args": {"ids": ids}, "result": run_tool("suggest_questions", {"ids": ids})})
+    return events
+
+
+def suggestions_of(item):
+    """버튼으로 보여 줄 질문: 마지막 suggest_questions 결과에서 이미 물어본 질문·이미 본 카드는 뺀다."""
+    asked = {d["content"].strip() for d in st.session_state.display if d["role"] == "user"}
+    seen = {e["result"].get("ask") for d in st.session_state.display for e in d.get("events", [])
+            if e["tool"] == "get_strategy_card"}
+    asked |= {x for x in seen if x}
+    for e in reversed(item.get("events", [])):
+        if e["tool"] == "suggest_questions":
+            return [x["q"] for x in e["result"].get("questions", []) if x["q"] not in asked]
+    return []
 
 
 def prepare_events(events, reply):
@@ -305,8 +353,10 @@ def render_assistant(events, reply, static=False, fallback=False):
             render_event(ev)
     if reply:
         st.markdown(safe_md(reply), unsafe_allow_html=True)
-    rest = [ev for ev in events if ev["tool"] not in TOP_TOOLS and "error" not in ev["result"]]
-    shown = [ev for ev in rest if not (ev["tool"] == "draft_document" and ev.get("inlined"))]
+    rest = [ev for ev in events if ev["tool"] not in TOP_TOOLS | HIDDEN_TOOLS and "error" not in ev["result"]]
+    # 화면에 따로 그릴 게 있는 것만 (본문에 이미 들어간 문장·상담 필요도, 그리기 없는 계획은 제외)
+    shown = [ev for ev in rest if ev["tool"] in ("search_law", "assess_risk", "get_strategy_card", "draft_document")
+             and not (ev["tool"] in ("draft_document", "assess_risk") and ev.get("inlined"))]
     if shown:
         st.markdown("---")
         st.caption("근거와 자세한 내용")
@@ -374,6 +424,16 @@ if not st.session_state.display:
 for item in st.session_state.display:
     render_message(item)
 
+# 이어서 물어보기: 마지막 답변 아래에만. 누르면 그 문장이 바로 질문으로 들어간다
+chip_clicked = None
+if st.session_state.display and st.session_state.display[-1]["role"] == "assistant":
+    chips = suggestions_of(st.session_state.display[-1])
+    if chips:
+        st.caption("이어서 물어보기")
+        for i, q in enumerate(chips):
+            if st.button(f"💬 {q}", key=f"chip_{len(st.session_state.display)}_{i}"):
+                chip_clicked = q
+
 
 def last_answer():
     for item in reversed(st.session_state.display):
@@ -389,7 +449,7 @@ if last_answer():
     st.download_button("📄 내 상황과 할 일 저장하기 (내 휴대폰에만 저장돼요)",
                        data=note + last_answer().replace(" :: ", "\n   → "), file_name=f"할일_{stamp[:10]}.txt", mime="text/plain")
 
-user_text = st.chat_input("예: 경찰서에서 출석하라는 전화를 받았어요", max_chars=MAX_INPUT_CHARS) or demo_clicked
+user_text = st.chat_input("예: 경찰서에서 출석하라는 전화를 받았어요", max_chars=MAX_INPUT_CHARS) or demo_clicked or chip_clicked
 
 if user_text:
     if st.session_state.turns >= MAX_TURNS_PER_SESSION:
@@ -467,7 +527,7 @@ if user_text:
                 else:
                     reply, events = basic_answer(user_text)
                 history = st.session_state.history + [{"role": "assistant", "content": reply}]
-        events = prepare_events(events, reply)
+        events = ensure_suggestions(prepare_events(events, reply))
         render_assistant(events, reply, fallback=fallback_used)
 
     st.session_state.history = history

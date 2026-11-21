@@ -76,8 +76,12 @@ risk2 = run_tool("assess_risk", {"signal_ids": ["suspect_status"], "sex_crime_su
 check("성범죄 피의자는 신호 1개여도 🔴", risk2["level"] == "red", risk2["level"])
 for cid in ["recording", "silence", "reference_alone"]:
     cd = run_tool("get_strategy_card", {"card_id": cid})
-    check(f"{cid} 카드 (표 형식 칸 5개)", cd.get("id") == cid and all(
-        all(o.get(k) for k in ["name", "when", "good", "caution", "say"]) for o in cd["options"]))
+    if cd.get("format") == "guide":  # 안내형 카드: 질문에 바로 답하는 항목들
+        check(f"{cid} 카드 (안내형: 첫 문장 + 항목)", cd.get("id") == cid and cd.get("lead") and cd.get("sections") and all(
+            sec.get("title") and sec.get("points") for sec in cd["sections"]))
+    else:
+        check(f"{cid} 카드 (표 형식 칸 5개)", cd.get("id") == cid and all(
+            all(o.get(k) for k in ["name", "when", "good", "caution", "say"]) for o in cd["options"]))
 vs = run_tool("check_official_contact", {"org_name": "○○경찰서 수사과"})
 check("경찰 확인 단계 4개 (182)", len(vs["verify_steps"]) == 4 and "182" in vs["verify_steps"][2])
 vs2 = run_tool("check_official_contact", {"org_name": "중수청"})
@@ -113,6 +117,26 @@ fb1, _ = basic_answer(s1)
 check("기본 안내: 사칭이면 경고만", "사칭 가능성이 높아요" in fb1 and "### ①" not in fb1)
 fu, fuev = basic_followup("조사실에서 녹음해도 돼요?")
 check("기본 안내 후속 질문: 녹음 카드", fuev and fuev[0]["result"]["id"] == "recording")
+
+print("이어서 물어보기 (질문 버튼)")
+from tools.followups import catalog
+sv = run_tool("get_strategy_card", {"card_id": "silence"})
+check("진술거부 카드: 관련 내용 한 번에 (쪼개지 않음)", len(sv["sections"]) == 5)
+check("버튼 = 카드 하나씩 (한 주제를 쪼갠 질문 없음)", sorted(x["id"] for x in catalog()) == ["recording", "reference_alone", "silence"])
+sq = run_tool("suggest_questions", {"ids": ["recording", "없는_id", "recording", "silence"]})
+check("질문 고르기: 없는 id·중복 버림", [x["id"] for x in sq["questions"]] == ["recording", "silence"])
+check("질문 고르기: 빈 목록이면 버튼 없음", run_tool("suggest_questions", {"ids": []})["questions"] == [])
+fb_sus = basic_answer("경찰서에서 피의자로 출석하라고 전화가 왔어요")[1]
+check("첫 답변: 카드 대신 질문 버튼 (피의자 → 진술거부·녹음)",
+      not any(e["tool"] == "get_strategy_card" for e in fb_sus)
+      and [x["id"] for x in fb_sus[-1]["result"]["questions"]] == ["silence", "recording"])
+check("첫 답변: 참고인 → 혼자 가기·녹음", [x["id"] for x in fev[-1]["result"]["questions"]] == ["reference_alone", "recording"])
+check("사칭 의심이면 질문 버튼 없음", not any(e["tool"] == "suggest_questions" for e in basic_answer(s1)[1]))
+for item in catalog():  # 버튼을 누르면 AI 없이도 같은 카드가 나오고, 관련 카드만 다음 버튼으로
+    _, ev = basic_followup(item["q"])
+    nxt = [x["id"] for x in ev[1]["result"]["questions"]]
+    check(f"버튼 '{item['q']}' → {item['card']} 카드, 다음 버튼 {nxt}",
+          ev[0]["result"]["id"] == item["card"] and item["card"] not in nxt and set(nxt) <= set(item["related"]))
 
 print("잘못된 요청 처리")
 check("없는 도구 → 오류 dict", "error" in run_tool("nope", {}))

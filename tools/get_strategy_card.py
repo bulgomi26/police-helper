@@ -1,4 +1,4 @@
-"""의견이 갈리는 선택 지점의 전략 카드를 돌려준다."""
+"""선택지·판단 기준 카드를 돌려준다. 카드 하나에 그 주제의 관련 내용이 모두 들어 있다."""
 from .data_loader import load
 from .search_law import get_articles
 
