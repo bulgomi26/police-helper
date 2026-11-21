@@ -140,7 +140,7 @@ def basic_answer(user_text, slots=None, events=None):
             what = "날짜를 미루고 싶다면" if stp["block"] == "postpone" else "무슨 사건인지 알고 싶다면"
             lines.append(f"- {what} → {num}")
         if len(talk) > 1:
-            lines.append(f"{talk[0][0]}과 {talk[1][0]}를 한 번에 말해도 돼요.")
+            lines += ["", f"{talk[0][0]}과 {talk[1][0]}를 한 번에 말해도 돼요."]  # 빈 줄: 목록에 붙지 않게
     if contact.get("tips"):
         lines += [""] + _tips(contact["tips"])
     if contact.get("next_call_tip"):
