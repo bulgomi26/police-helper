@@ -161,8 +161,8 @@ def basic_answer(user_text, slots=None, events=None):
                 lines += [f"- {m['label']}" for m in risk["matched"]]
             if risk.get("sex_crime_override"):
                 lines.append("- 성범죄 피의자 출석요구는 신호 개수와 관계없이 🔴로 안내해요.")
-            lines += ["", "❓ 이럴 때는 꼭 상담받으세요 :: 수사관이 나를 의심하는 질문을 하거나, 증거가 있다고만 하고 내용을 안 알려 주거나, "
-                      "처벌이 무거운 죄명(성범죄·사기 등)이라면 출석 전에 상담을 받으세요.", "",
+            lines += ["", "❓ 이럴 때는 상담을 권해요 :: 수사관이 나를 의심하는 질문을 하거나, 증거가 있다고만 하고 내용을 안 알려 주거나, "
+                      "처벌이 무거운 죄명(성범죄·사기 등)이라면 출석 전에 상담을 받아 보시길 권해요.", "",
                       "#### 상담받는 방법"]
         if stp["prepare"]:
             lines.append("**준비물**")
