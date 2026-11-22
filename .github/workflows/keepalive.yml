@@ -1,0 +1,43 @@
+# Streamlit Community Cloud는 12시간 동안 접속이 없으면 앱을 재운다.
+# 4시간마다 브라우저로 앱에 들어가서, 잠들어 있으면 "Yes, get this app back up!" 버튼을 누른다.
+# (커밋으로는 깨어나지 않음 — 실제 방문이 필요)
+name: keep-streamlit-awake
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"   # 4시간마다 (UTC 기준, GitHub 사정으로 몇십 분 늦을 수 있음)
+  workflow_dispatch:          # Actions 탭에서 직접 실행해 볼 수 있게
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_URL: "https://police-call-guide-2026.streamlit.app/"
+    steps:
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Visit app and wake it up
+        run: |
+          python - <<'PY'
+          import os
+          from playwright.sync_api import sync_playwright
+
+          url = os.environ["APP_URL"]
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              page.goto(url, wait_until="domcontentloaded", timeout=60000)
+              page.wait_for_timeout(8000)
+              button = page.get_by_role("button", name="Yes, get this app back up!")
+              if button.count() > 0:
+                  print("잠들어 있음 → 깨우기 버튼 클릭")
+                  button.first.click()
+                  page.wait_for_timeout(90000)  # 앱이 다시 뜰 때까지 기다림
+              else:
+                  print("이미 깨어 있음")
+                  page.wait_for_timeout(15000)  # 잠깐 머물러 접속으로 잡히게
+              browser.close()
+          PY
