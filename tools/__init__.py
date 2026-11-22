@@ -96,8 +96,8 @@ TOOLS = [
     ),
     _fn(
         "get_strategy_card",
-        "선택지·판단 기준 카드(화면에 카드로 나온다). reference_alone=참고인 조사에 혼자 갈지, recording=녹음, silence=진술거부권.",
-        {"card_id": {"type": "string", "enum": ["reference_alone", "recording", "silence"]}},
+        "선택지·판단 기준 카드(화면에 카드로 나온다). 사용자가 물은 주제에 맞는 카드 하나를 부른다. " + QUESTION_DESC,
+        {"card_id": {"type": "string", "enum": QUESTION_IDS}},
         ["card_id"],
     ),
     _fn(

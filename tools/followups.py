@@ -8,12 +8,15 @@ from .data_loader import load
 
 MAX_SUGGEST = 3
 
-# 첫 답변에서 신분별로 보여 줄 카드 (AI가 고르지 못했을 때). 피해자·조사 중·사칭 의심은 없음
+# 첫 답변에서 상황별로 보여 줄 카드 (AI가 고르지 못했을 때). 피해자·조사 중·사칭 의심은 없음
 ROLE_DEFAULTS = {
-    "피의자": ["silence", "recording"],
-    "모름": ["silence", "recording"],
-    "참고인": ["reference_alone", "recording"],
+    "피의자": ["silence", "no_show", "read_record"],
+    "모름": ["silence", "no_show", "read_record"],
+    "참고인": ["reference_alone", "reference_no_show", "recording"],
 }
+# 휴대폰 속 자료가 사건과 관련 있어 보이면 '휴대폰 제출' 카드를 앞에 둔다 (피의자·신분 모름일 때)
+PHONE_WORDS = ["카톡", "카카오톡", "메신저", "텔레그램", "인스타", "SNS", "디엠", "DM", "채팅", "대화 내용",
+               "사진", "동영상", "촬영", "몰카", "휴대폰", "핸드폰", "스마트폰"]
 
 
 def catalog():
@@ -39,9 +42,15 @@ def suggest_questions(ids=None):
     return {"questions": [{"id": i, "q": by_id[i]["q"]} for i in picked[:MAX_SUGGEST]]}
 
 
-def default_ids(role=None, shown_card=None):
-    """규칙으로 고르기: 카드를 보여 줬으면 그 카드와 관련된 카드만, 첫 답변이면 신분별 기본값."""
+def default_ids(role=None, shown_card=None, context="", sex_crime=False):
+    """규칙으로 고르기.
+    - 카드를 보여 줬으면: 그 카드와 관련된 카드(데이터의 related)만
+    - 첫 답변이면: 신분별 기본값 + 상황(휴대폰 자료·성범죄)에 따라 휴대폰 제출 카드를 앞에
+    """
     if shown_card:
         card = next((x for x in catalog() if x["id"] == shown_card), None)
         return [i for i in (card["related"] if card else []) if i != shown_card]
-    return list(ROLE_DEFAULTS.get(role or "", []))
+    ids = list(ROLE_DEFAULTS.get(role or "", []))
+    if ids and role in ("피의자", "모름") and (sex_crime or any(w in (context or "") for w in PHONE_WORDS)):
+        ids = ["silence", "phone_submit", "no_show"]
+    return ids

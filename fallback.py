@@ -196,9 +196,11 @@ def basic_answer(user_text, slots=None, events=None):
             lines += [law, ""]
     # 진술거부·녹음 같은 카드는 한 번에 다 보여 주지 않고, 이어서 물어볼 질문 버튼으로 연결한다
     # (AI가 상황을 정리하며 고른 질문이 있으면 그것을, 없으면 신분별 기본 질문)
-    call("suggest_questions", {"ids": slots.get("followups") or default_ids(role)})
+    context = " ".join([user_text, slots.get("case_type", ""), slots.get("evidence", "")])
+    rule_ids = default_ids(role, context=context, sex_crime=sex)
+    call("suggest_questions", {"ids": slots.get("followups") or rule_ids})
     if not events[-1]["result"]["questions"]:
-        events[-1]["result"] = run_tool("suggest_questions", {"ids": default_ids(role)})
+        events[-1]["result"] = run_tool("suggest_questions", {"ids": rule_ids})
     return "\n".join(lines), events
 
 
@@ -243,7 +245,12 @@ def _victim_answer(contact, call):
     return "\n".join(lines)
 
 
-FOLLOWUP_CARDS = [
+FOLLOWUP_CARDS = [  # 위에서부터 먼저 맞는 것 (구체적인 말을 앞에)
+    (("휴대폰", "핸드폰", "임의제출", "폰을"), "phone_submit"),
+    (("조서", "서명"), "read_record"),
+    (("심야", "밤늦게", "밤 늦게", "몇 시간", "오래 걸", "길어지"), "interview_time"),
+    (("참고인인데 꼭", "참고인도 꼭", "참고인인데 안 가", "참고인은 안 가"), "reference_no_show"),
+    (("출석 안 하", "안 가면", "안 나가면", "불출석", "출석하지 않"), "no_show"),
     (("녹음", "녹화", "기록"), "recording"),
     (("진술", "묵비", "거부", "말하지"), "silence"),
     (("혼자", "참고인", "동행", "같이 가"), "reference_alone"),

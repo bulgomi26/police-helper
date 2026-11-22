@@ -244,7 +244,12 @@ def render_event(ev):
                 for sec in r["sections"]:
                     st.markdown(f"##### {sec['title']}")
                     if sec.get("type") == "say":
-                        st.markdown("\n".join(("> " + x) if x.startswith('"') else f"- {x}" for x in sec["points"]))
+                        quotes = [x for x in sec["points"] if x.startswith('"')]
+                        notes = [x for x in sec["points"] if not x.startswith('"')]
+                        for q in quotes:  # 말할 문장은 하나씩 따로 (붙으면 한 문단이 된다)
+                            st.markdown("> " + q)
+                        if notes:
+                            st.markdown("\n".join(f"- {x}" for x in notes))
                     else:
                         st.markdown("\n".join(f"- {x}" for x in sec["points"]))
                     if src_md(sec.get("experts", [])):
