@@ -58,6 +58,23 @@ Streamlit Community Cloud. API 키는 앱 설정의 Secrets에만 넣고, `secre
 - `data/laws.json`: 조문 17개 모두 국가법령정보센터 원문과 대조 완료(`verified: true`). 형사소송법·수사준칙 2026. 10. 2. 시행본 기준
 - 법률 자문이 아니며, 구체적인 사건은 변호사 상담을 권합니다.
 
+## Credits / Licenses
+
+| 구분 | 명칭 | 출처 · 라이선스 | 사용 위치 |
+|---|---|---|---|
+| 오픈소스 | Streamlit | streamlit.io · Apache 2.0 | 서비스 화면 |
+| 오픈소스 | openai Python 라이브러리 | github.com/openai/openai-python · Apache 2.0 | AI 모델 호출 (OpenAI 호환 API) |
+| 오픈소스 | Playwright | playwright.dev · Apache 2.0 | 앱 자동 깨우기 (GitHub Actions) |
+| 외부 데이터 | 형사소송법·수사준칙 조문 17개, 대법원 판례 1건(2001도192) | 국가법령정보센터(law.go.kr) · 법령·판결은 저작권 보호 대상 아님(저작권법 제7조) | `data/laws.json`, 진술거부권 카드 |
+| 외부 데이터 | 수사기관 공식 연락처 | 경찰민원콜센터(182)·정부민원안내콜센터(110) 공식 안내 · 공개 정보 | `data/agencies.json`, 진위 확인 안내 |
+| 외부 자료 | 변호사 유튜브 영상 3편 | 정변TV(법무법인DH) [링크](https://www.youtube.com/watch?v=O40r0Li55ic) · 변호사또 [링크](https://www.youtube.com/shorts/BzsPu-zpH-k) · 강민영변호사 [링크](https://www.youtube.com/shorts/pS2y04_ej7E) · 채널명·링크 표시, 요지만 직접 요약 (저작권법 제28·37조) | `data/strategy_cards.json`, 진술거부권 카드 |
+| AI API | Qwen3.6-Plus (Alibaba Cloud Model Studio) | alibabacloud.com · 이용약관 | 서비스 답변 생성·도구 선택 |
+| 개발 도구 | Claude (Anthropic) | claude.ai · 이용약관 | 개발 보조 (코드·데이터 작성과 검토, 문서 초안, 시연 영상 편집) |
+| 디자인 | 미리캔버스 템플릿·미리캔버스 AI(미리클) | miricanvas.com · 이용약관 | 소개서 디자인 |
+| 글꼴 | Pretendard | SIL OFL 1.1 | 소개서, 시연 영상 자막 |
+
+AI 활용 범위와 검증 방법은 과제 제출서의 「AI 활용내역」과 소개서 별첨 「활용한 외부 자원·출처」에 같은 내용으로 적었습니다.
+
 ## 대회 규칙 관련
 - 데모·테스트는 가상 데이터만 사용 (외부 AI API에 실제 개인정보 전송 금지)
 - 제출 마감(2026-11-23 17:00) 후에는 기능·알고리즘·프롬프트·데이터를 변경하지 않습니다.
